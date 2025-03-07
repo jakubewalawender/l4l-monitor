@@ -26,11 +26,11 @@ class LuxuryForLessMonitor:
         self.db = SQLiteDatabase()  # Create instance of SQLiteDatabase
 
     async def check_for_updates(self) -> None:
-        self.info_logger.info("Starting LuxuryForLess Monitor...")  # Replacing print with info logging
+        self.info_logger.info("Starting LuxuryForLess Monitor...")
         while True:
             try:
                 # Fetch the latest response from the API
-                response = await self.luxury.fetch_api_response()
+                response = self.luxury.fetch_api_response()
 
                 # Retrieve stored product IDs from the database
                 stored_ids = self.db.retrieve_product_ids()

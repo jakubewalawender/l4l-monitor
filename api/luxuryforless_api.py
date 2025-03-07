@@ -1,8 +1,8 @@
-import asyncio
+import json
+import re
 from pathlib import Path
-from typing import Optional
 
-from playwright.async_api import async_playwright, Response
+import requests
 
 import config
 from api.models.api_response import LuxuryForLessAPIResponse
@@ -13,33 +13,34 @@ BASE_DIR = Path(__file__).resolve().parent
 
 class LuxuryForLessAPI:
     def __init__(self):
-        # Define URLs and API endpoints
-        self.base_url = config.BASE_URL
-        self.presale_url = config.PRESALE_URL
-        self.api_url = config.API_URL
+        self.presale_url = config.PRESALE_URL  # The main page where the script is embedded
+        self.api_url = config.API_URL  # The actual API endpoint
 
-    async def fetch_api_response(self) -> LuxuryForLessAPIResponse:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)  # Headless mode for Raspberry Pi
-            page = await browser.new_page()
+    def fetch_api_response(self) -> LuxuryForLessAPIResponse:
+        """Replicates the fetch request from the presale page to retrieve product data."""
 
-            response_data: Optional[LuxuryForLessAPIResponse] = None
+        # Step 1: Fetch the presale page HTML
+        response = requests.get(self.presale_url)
+        if response.status_code != 200:
+            raise Exception(f"Failed to fetch page, status code: {response.status_code}")
 
-            # Function to capture API response
-            async def intercept(response: Response) -> None:
-                nonlocal response_data
-                if self.api_url in response.url:
-                    json_data = await response.json()
-                    response_data = LuxuryForLessAPIResponse(**json_data)
+        # Step 2: Extract the JSON payload from the script tag
+        match = re.search(r'body:\s*\'({.*})\'', response.text)
+        if not match:
+            raise Exception("Could not extract JSON payload from the page.")
 
-            page.on("response", intercept)
+        json_payload = match.group(1).replace("\\'", "'")  # Fix escaping issues
+        parsed_payload = json.loads(json_payload)
 
-            await page.goto(self.presale_url)
-            await asyncio.sleep(5)  # Wait for JavaScript execution
-            await browser.close()
+        # Step 3: Make the same POST request to the API
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
 
-            if response_data is None:
-                raise ValueError("Failed to fetch data from API.")
+        api_response = requests.post(self.api_url, json=parsed_payload, headers=headers)
+        if api_response.status_code != 200:
+            raise Exception(f"Failed to fetch data from API, status code: {api_response.status_code}")
 
-            return response_data
-
+        # Step 4: Convert API response to `LuxuryForLessAPIResponse`
+        return LuxuryForLessAPIResponse(**api_response.json())
