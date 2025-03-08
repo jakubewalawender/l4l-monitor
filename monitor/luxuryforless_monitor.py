@@ -64,24 +64,14 @@ class LuxuryForLessMonitor:
     def get_new_products(self, stored_ids: list, new_data: LuxuryForLessAPIResponse):
         """Compares stored product IDs with the new ones after filtering unwanted products."""
 
-        # Get filtered list of unwanted product names
-        unwanted_products = self.filter_response(new_data)
-
         # Extract only the products that are not in the stored list AND not unwanted
         new_products = [
             product for search in new_data.search for product in search.products
-            if product.products_id not in stored_ids and product.name not in unwanted_products
+            if product.products_id not in stored_ids and not any(keyword.lower() in product.name.lower() for keyword in self.UNWANTED_KEYWORDS)
         ]
 
         return new_products
 
-    def filter_response(self, response: LuxuryForLessAPIResponse):
-        """Returns a list of products excluding unwanted ones."""
-
-        return [
-            product for search in response.search for product in search.products
-            if any(keyword.lower() in product.name.lower() for keyword in self.UNWANTED_KEYWORDS)
-        ]
 
     def escape_markdown_v2(self, text: str) -> str:
         """Escapes special characters for Telegram MarkdownV2."""
