@@ -23,13 +23,16 @@ class SQLiteDatabase:
         conn.close()
 
     def store_product_ids(self, product_ids: List[str]):
-        """Stores product IDs from the last response in the database."""
+        """Replaces old product IDs with the new ones in the database."""
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
 
-        # Insert each product_id, ignoring duplicates
+        # Step 1: Clear all old product IDs
+        cursor.execute("DELETE FROM product_ids")
+
+        # Step 2: Insert new product IDs
         cursor.executemany("""
-            INSERT OR IGNORE INTO product_ids (product_id) VALUES (?)
+            INSERT INTO product_ids (product_id) VALUES (?)
         """, [(product_id,) for product_id in product_ids])
 
         conn.commit()
