@@ -37,41 +37,43 @@ class LuxuryForLessMonitor:
                 response = self.luxury.fetch_api_response()
 
                 # Retrieve stored product IDs from the database
-                stored_ids = self.db.retrieve_product_ids()
+                stored_products = self.db.retrieve_products()
 
                 # If there are no stored product IDs, skip notifications
-                if not stored_ids:
-                    self.info_logger.info("No stored product IDs, skipping notifications.")
+                if not stored_products:
+                    self.info_logger.info("No stored products, skipping notifications.")
                 else:
                     # Otherwise, get new products based on the comparison of stored IDs
-                    new_products = self.get_new_products(stored_ids, response)
+                    new_products = self.get_new_products(stored_products, response)
                     if new_products:
                         self.info_logger.info(f"New products detected: {len(new_products)}")
+                        for index, product in enumerate(new_products):
+                            self.info_logger.info(f"{index}: ID: {product.products_id}, Name: {product.name}")
                         if self.NOTIFICATIONS_ENABLED:
                             self.notify_user(new_products)
                     else:
                         self.info_logger.info("No new products detected.")
 
                 # Store the new product IDs to the database (this will replace the old IDs)
-                product_ids = [product.products_id for search in response.search for product in search.products]
-                self.db.store_product_ids(product_ids)  # Save the new product IDs to the database
+                products_to_store= [(product.products_id, product.name) for search in response.search for product in search.products]
+                self.db.store_products(products_to_store)  # Save the new product IDs to the database
 
             except Exception as e:
                 self.exception_logger.error(f"Error fetching data: {e}", exc_info=True)  # Log exception with traceback
 
             await asyncio.sleep(self.CHECK_INTERVAL)
 
-    def get_new_products(self, stored_ids: list, new_data: LuxuryForLessAPIResponse):
-        """Compares stored product IDs with the new ones after filtering unwanted products."""
+    def get_new_products(self, stored_products: list, new_data: LuxuryForLessAPIResponse):
+        """Compares stored product IDs and names with the new ones after filtering unwanted products."""
 
         # Extract only the products that are not in the stored list AND not unwanted
         new_products = [
             product for search in new_data.search for product in search.products
-            if product.products_id not in stored_ids and not any(keyword.lower() in product.name.lower() for keyword in self.UNWANTED_KEYWORDS)
+            if (product.products_id, product.name) not in stored_products and not any(
+                keyword.lower() in product.name.lower() for keyword in self.UNWANTED_KEYWORDS)
         ]
 
         return new_products
-
 
     def escape_markdown_v2(self, text: str) -> str:
         """Escapes special characters for Telegram MarkdownV2."""
